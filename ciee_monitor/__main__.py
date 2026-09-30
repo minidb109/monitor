@@ -10,6 +10,7 @@ from typing import Any
 
 from .api import CieeApiError, fetch_vagas
 from .display import format_vaga
+from .health import resolve_port, start_health_server
 from .notifier import EmailConfig, NotifierConfigError, NotifierError, notify_vaga
 from .storage import find_new_vagas, load_seen, mark_as_seen, save_seen
 from .watch import run_forever
@@ -140,6 +141,15 @@ def main(argv: list[str] | None = None) -> int:
         interval = resolve_interval(args)
         if interval <= 0:
             parser.error("--interval deve ser maior que zero")
+        try:
+            port = resolve_port()
+        except ValueError as exc:
+            parser.error(str(exc))
+        try:
+            start_health_server(port)
+        except OSError as exc:
+            parser.error(f"não foi possível iniciar o health server na porta {port}: {exc}")
+        print(f"Health check em :{port} (/health).")
         return run_forever(
             interval=interval,
             seen_path=seen_path,

@@ -143,6 +143,7 @@ def test_main_watch_chama_run_forever(monkeypatch):
 
     fake = MagicMock(return_value=0)
     monkeypatch.setattr(m, "run_forever", fake)
+    monkeypatch.setattr(m, "start_health_server", MagicMock())
     rc = m.main(["--watch", "--interval", "7", "--seen-file", "x.json"])
     assert rc == 0
     assert fake.called
@@ -191,6 +192,7 @@ def test_main_watch_usa_seen_file_do_env(monkeypatch):
     monkeypatch.setenv("CIEE_SEEN_FILE", "/tmp/seen-test.json")
     fake = MagicMock(return_value=0)
     monkeypatch.setattr(m, "run_forever", fake)
+    monkeypatch.setattr(m, "start_health_server", MagicMock())
     rc = m.main(["--watch", "--interval", "7"])
     assert rc == 0
     _, kwargs = fake.call_args

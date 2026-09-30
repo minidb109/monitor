@@ -160,3 +160,52 @@ def test_main_sem_watch_chama_run_once(monkeypatch):
     rc = m.main([])
     assert rc == 0
     assert fake.called
+
+
+def test_resolve_seen_file_default_sem_env(monkeypatch):
+    from ciee_monitor.__main__ import resolve_seen_file
+
+    monkeypatch.delenv("CIEE_SEEN_FILE", raising=False)
+    assert resolve_seen_file(None) == "seen.json"
+
+
+def test_resolve_seen_file_com_env(monkeypatch):
+    from ciee_monitor.__main__ import resolve_seen_file
+
+    monkeypatch.setenv("CIEE_SEEN_FILE", "/tmp/seen-test.json")
+    assert resolve_seen_file(None) == "/tmp/seen-test.json"
+
+
+def test_resolve_seen_file_cli_vence_env(monkeypatch):
+    from ciee_monitor.__main__ import resolve_seen_file
+
+    monkeypatch.setenv("CIEE_SEEN_FILE", "/tmp/seen-test.json")
+    assert resolve_seen_file("meu-seen.json") == "meu-seen.json"
+
+
+def test_main_watch_usa_seen_file_do_env(monkeypatch):
+    from unittest.mock import MagicMock
+
+    import ciee_monitor.__main__ as m
+
+    monkeypatch.setenv("CIEE_SEEN_FILE", "/tmp/seen-test.json")
+    fake = MagicMock(return_value=0)
+    monkeypatch.setattr(m, "run_forever", fake)
+    rc = m.main(["--watch", "--interval", "7"])
+    assert rc == 0
+    _, kwargs = fake.call_args
+    assert kwargs.get("seen_path") == "/tmp/seen-test.json"
+
+
+def test_main_execucao_unica_usa_seen_file_do_env(monkeypatch):
+    from unittest.mock import MagicMock
+
+    import ciee_monitor.__main__ as m
+
+    monkeypatch.setenv("CIEE_SEEN_FILE", "/tmp/seen-test.json")
+    fake = MagicMock(return_value=0)
+    monkeypatch.setattr(m, "run_once", fake)
+    rc = m.main([])
+    assert rc == 0
+    _, kwargs = fake.call_args
+    assert kwargs.get("seen_path") == "/tmp/seen-test.json"

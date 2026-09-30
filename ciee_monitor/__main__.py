@@ -15,6 +15,8 @@ from .storage import find_new_vagas, load_seen, mark_as_seen, save_seen
 from .watch import run_forever
 
 DEFAULT_INTERVAL = 300
+DEFAULT_SEEN_FILE = "seen.json"
+SEEN_FILE_ENV_VAR = "CIEE_SEEN_FILE"
 
 
 def run_once(
@@ -86,7 +88,7 @@ def run_once(
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Monitor CIEE - execução única ou contínua (--watch)")
-    p.add_argument("--seen-file", default="seen.json", help="arquivo local de vagas já vistas")
+    p.add_argument("--seen-file", default=None, help="arquivo local de vagas já vistas (padrão: seen.json ou $CIEE_SEEN_FILE)")
     p.add_argument("--timeout", type=int, default=15, help="timeout HTTP em segundos")
     p.add_argument("--size", type=int, default=100, help="page size da API")
     p.add_argument("--page", type=int, default=0, help="página da API")
@@ -113,9 +115,20 @@ def resolve_interval(args: argparse.Namespace) -> int:
     return DEFAULT_INTERVAL
 
 
+def resolve_seen_file(cli_value: str | Path | None = None) -> str:
+    """Precedência: --seen-file > $CIEE_SEEN_FILE > seen.json."""
+    if cli_value is not None and str(cli_value).strip() != "":
+        return str(cli_value)
+    env = os.getenv(SEEN_FILE_ENV_VAR)
+    if env is not None and env.strip() != "":
+        return env.strip()
+    return DEFAULT_SEEN_FILE
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    seen_path = resolve_seen_file(args.seen_file)
     params: dict[str, Any] | None = None
     if args.size != 100 or args.page != 0:
         from .api import DEFAULT_PARAMS
@@ -129,11 +142,11 @@ def main(argv: list[str] | None = None) -> int:
             parser.error("--interval deve ser maior que zero")
         return run_forever(
             interval=interval,
-            seen_path=args.seen_file,
+            seen_path=seen_path,
             params=params,
             timeout=args.timeout,
         )
-    return run_once(seen_path=args.seen_file, params=params, timeout=args.timeout)
+    return run_once(seen_path=seen_path, params=params, timeout=args.timeout)
 
 
 if __name__ == "__main__":

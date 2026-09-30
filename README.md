@@ -47,6 +47,16 @@ Saída no terminal:
 
 Persistência: `seen.json` (lista de `codigoVaga` já vistos, como strings). Na segunda execução com os mesmos dados, nada aparece como novo.
 
+O caminho do arquivo pode ser configurado via `CIEE_SEEN_FILE` (precedência: `--seen-file` > `$CIEE_SEEN_FILE` > `seen.json`). Sem nenhuma configuração, o comportamento local atual é preservado.
+
+```bash
+# local (usa seen.json, sem configurar nada)
+.venv/bin/python -m ciee_monitor --watch
+
+# ambiente hospedado com disco persistente (ex.: Deplexo, /data sobrevive a redeploys)
+CIEE_SEEN_FILE=/data/seen.json .venv/bin/python -m ciee_monitor --watch
+```
+
 ## Notificações por e-mail
 
 Quando uma vaga **nova** é detectada, o monitor envia um e-mail via SMTP (só stdlib, sem dependências). Assunto: `[CIEE Monitor] Nova vaga de estágio - <codigo>`.

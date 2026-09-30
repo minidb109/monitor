@@ -4,7 +4,7 @@ Monitor local (execução única ou contínua com `--watch`) para a API pública
 
 ## Objetivo
 
-Consultar a API pública de vagas do CIEE e detectar novas oportunidades de estágio em Desenvolvimento de Sistemas (Sorocaba), marcando `NOVA VAGA` apenas na primeira vez que cada `codigoVaga` aparece.
+Consultar a API pública de vagas do CIEE e detectar novas oportunidades de estágio em desenvolvimento de software (Sorocaba), marcando `NOVA VAGA` apenas na primeira vez que cada `codigoVaga` relevante aparece.
 
 ## API
 
@@ -43,7 +43,19 @@ Saída no terminal:
 
 - quantidade de vagas encontradas (`totalElements` + retornadas na página)
 - para cada vaga: código, empresa, área, bolsa, localização, descrição, atividades
-- vagas com `codigoVaga` ainda não registrado são marcadas com `🆕 NOVA VAGA`
+- vagas com `codigoVaga` ainda não registrado e relacionadas a software são marcadas com `🆕 NOVA VAGA`
+
+## Filtro por palavras-chave
+
+A API é consultada com os filtros de informática/tecnologia acima, e cada vaga é classificada pelo conteúdo (título, área, descrição e atividades, sem acentos e sem case). Só vagas relacionadas a software geram `NOVA VAGA` e e-mail.
+
+```bash
+# lista padrão (ciee_monitor/keywords.py): desenvolvimento, software, programação,
+# backend, frontend, java, python, javascript, web, mobile, dados, cloud, qa, ...
+
+# personalizar (separado por vírgula; sem definir, usa o padrão)
+CIEE_KEYWORDS=desenvolvimento,software,programação,java,python,backend,frontend .venv/bin/python -m ciee_monitor --watch
+```
 
 Persistência: `seen.json` (lista de `codigoVaga` já vistos, como strings). Na segunda execução com os mesmos dados, nada aparece como novo.
 
@@ -91,7 +103,8 @@ Semântica de falha (sem overengineering, sem perda silenciosa):
 - `ciee_monitor/api.py` — `fetch_vagas()` + `CieeApiError` (rede, timeout, HTTP, JSON)
 - `ciee_monitor/storage.py` — `load_seen()`, `save_seen()`, `find_new_vagas()`, `mark_as_seen()`
 - `ciee_monitor/display.py` — `format_vaga()`, `format_bolsa()`, `format_local()`
-- `ciee_monitor/__main__.py` — `run_once()` + CLI + hook de notificação (só novas, antes de persistir)
+- `ciee_monitor/__main__.py` — `run_once()` + CLI + hook de notificação (só novas relevantes, antes de persistir)
+- `ciee_monitor/keywords.py` — `DEFAULT_KEYWORDS`, `resolve_keywords()` (`$CIEE_KEYWORDS`), `vaga_matches()`
 - `ciee_monitor/notifier.py` — `EmailConfig.from_env()`, `build_message()`, `notify_vaga()` (SMTP stdlib)
 - `ciee_monitor/watch.py` — `run_forever()` (loop com `sleep`, erro não encerra, `Ctrl+C` limpo)
 - `tests/` — testes com mocks (API real hoje retorna 0 vagas para o filtro completo; SMTP sempre mockado, nenhum e-mail real)

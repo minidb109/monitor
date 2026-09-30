@@ -43,7 +43,7 @@ def _vaga_exemplo():
         "areaAtuacao": None,
         "bolsaAuxilio": 900,
         "tipoAuxilioBolsa": "Mensal",
-        "descricao": "Suporte técnico mock",
+        "descricao": "Suporte técnico em desenvolvimento de software mock",
         "atividades": ["Atender chamados", "Manutenção"],
         "local": {"cidade": "Sorocaba", "uf": "SP", "bairro": "Centro"},
     }
@@ -73,7 +73,7 @@ def test_build_message_corpo_contem_principais_dados(monkeypatch):
     assert "Informática - TÉC." in body
     assert "900" in body
     assert "Sorocaba" in body
-    assert "Suporte técnico mock" in body
+    assert "Suporte técnico em desenvolvimento de software mock" in body
     assert "Atender chamados" in body
 
 

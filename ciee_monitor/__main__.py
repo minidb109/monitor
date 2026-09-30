@@ -11,6 +11,7 @@ from typing import Any
 from .api import CieeApiError, fetch_vagas
 from .display import format_vaga
 from .health import resolve_port, start_health_server
+from .keywords import resolve_keywords, vaga_matches
 from .notifier import EmailConfig, NotifierConfigError, NotifierError, notify_vaga
 from .storage import find_new_vagas, load_seen, mark_as_seen, save_seen
 from .watch import run_forever
@@ -25,6 +26,7 @@ def run_once(
     seen_path: str | Path = "seen.json",
     params: dict[str, Any] | None = None,
     timeout: int = 15,
+    keywords: list[str] | None = None,
 ) -> int:
     """Executa uma verificação única. Retorna 0 em sucesso, 1 em erro de API."""
     seen = load_seen(seen_path)
@@ -35,16 +37,25 @@ def run_once(
         print(f"Erro ao consultar API do CIEE: {exc}", file=sys.stderr)
         return 1
 
-    novas = find_new_vagas(vagas, seen)
+    active_keywords = resolve_keywords() if keywords is None else keywords
+    novas = [
+        vaga
+        for vaga in find_new_vagas(vagas, seen)
+        if vaga_matches(vaga, active_keywords)
+    ]
 
     print(f"Vagas encontradas: {total} (retornadas nesta página: {len(vagas)})")
     print(f"Novas desde a última execução: {len(novas)}")
     print("-" * 60)
 
-    seen_codes = seen
+    novos_codes = {
+        str(vaga.get("codigoVaga"))
+        for vaga in novas
+        if vaga.get("codigoVaga") is not None
+    }
     for vaga in vagas:
         code = str(vaga.get("codigoVaga")) if vaga.get("codigoVaga") is not None else None
-        is_new = code is not None and code not in seen_codes
+        is_new = code is not None and code in novos_codes
         print(format_vaga(vaga, is_new=is_new))
         print("-" * 60)
 

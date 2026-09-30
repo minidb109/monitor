@@ -18,6 +18,7 @@ from .watch import run_forever
 DEFAULT_INTERVAL = 300
 DEFAULT_SEEN_FILE = "seen.json"
 SEEN_FILE_ENV_VAR = "CIEE_SEEN_FILE"
+DATA_DIR = Path("/data")
 
 
 def run_once(
@@ -89,7 +90,7 @@ def run_once(
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Monitor CIEE - execução única ou contínua (--watch)")
-    p.add_argument("--seen-file", default=None, help="arquivo local de vagas já vistas (padrão: seen.json ou $CIEE_SEEN_FILE)")
+    p.add_argument("--seen-file", default=None, help="arquivo local de vagas já vistas (padrão: $CIEE_SEEN_FILE, /data/seen.json se /data existir, senão seen.json)")
     p.add_argument("--timeout", type=int, default=15, help="timeout HTTP em segundos")
     p.add_argument("--size", type=int, default=100, help="page size da API")
     p.add_argument("--page", type=int, default=0, help="página da API")
@@ -116,13 +117,23 @@ def resolve_interval(args: argparse.Namespace) -> int:
     return DEFAULT_INTERVAL
 
 
-def resolve_seen_file(cli_value: str | Path | None = None) -> str:
-    """Precedência: --seen-file > $CIEE_SEEN_FILE > seen.json."""
+def resolve_seen_file(
+    cli_value: str | Path | None = None, data_dir: Path | None = None
+) -> str:
+    """Precedência: --seen-file > $CIEE_SEEN_FILE > /data/seen.json > seen.json.
+
+    O default automático usa /data/seen.json quando o diretório /data existe
+    (produção no Deplexo) e seen.json caso contrário (uso local). Assim a
+    produção funciona sem variável de ambiente e o local segue intacto.
+    """
     if cli_value is not None and str(cli_value).strip() != "":
         return str(cli_value)
     env = os.getenv(SEEN_FILE_ENV_VAR)
     if env is not None and env.strip() != "":
         return env.strip()
+    base = data_dir if data_dir is not None else DATA_DIR
+    if base.is_dir():
+        return str(base / "seen.json")
     return DEFAULT_SEEN_FILE
 
 

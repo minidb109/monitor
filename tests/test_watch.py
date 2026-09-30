@@ -211,3 +211,31 @@ def test_main_execucao_unica_usa_seen_file_do_env(monkeypatch):
     assert rc == 0
     _, kwargs = fake.call_args
     assert kwargs.get("seen_path") == "/tmp/seen-test.json"
+
+
+def test_resolve_seen_file_usa_data_quando_diretorio_existe(tmp_path, monkeypatch):
+    from ciee_monitor.__main__ import resolve_seen_file
+
+    monkeypatch.delenv("CIEE_SEEN_FILE", raising=False)
+    assert resolve_seen_file(None, data_dir=tmp_path) == str(tmp_path / "seen.json")
+
+
+def test_resolve_seen_file_local_quando_sem_data(tmp_path, monkeypatch):
+    from ciee_monitor.__main__ import resolve_seen_file
+
+    monkeypatch.delenv("CIEE_SEEN_FILE", raising=False)
+    assert resolve_seen_file(None, data_dir=tmp_path / "sem-data") == "seen.json"
+
+
+def test_resolve_seen_file_env_vence_data_automatico(tmp_path, monkeypatch):
+    from ciee_monitor.__main__ import resolve_seen_file
+
+    monkeypatch.setenv("CIEE_SEEN_FILE", "/tmp/seen-test.json")
+    assert resolve_seen_file(None, data_dir=tmp_path) == "/tmp/seen-test.json"
+
+
+def test_resolve_seen_file_cli_vence_data_automatico(tmp_path, monkeypatch):
+    from ciee_monitor.__main__ import resolve_seen_file
+
+    monkeypatch.delenv("CIEE_SEEN_FILE", raising=False)
+    assert resolve_seen_file("meu-seen.json", data_dir=tmp_path) == "meu-seen.json"

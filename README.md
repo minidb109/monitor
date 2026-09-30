@@ -47,13 +47,16 @@ Saída no terminal:
 
 Persistência: `seen.json` (lista de `codigoVaga` já vistos, como strings). Na segunda execução com os mesmos dados, nada aparece como novo.
 
-O caminho do arquivo pode ser configurado via `CIEE_SEEN_FILE` (precedência: `--seen-file` > `$CIEE_SEEN_FILE` > `seen.json`). Sem nenhuma configuração, o comportamento local atual é preservado.
+O caminho do arquivo pode ser configurado via `CIEE_SEEN_FILE` (precedência: `--seen-file` > `$CIEE_SEEN_FILE` > automático). Sem configurar nada, o app usa `/data/seen.json` quando o diretório `/data` existe (produção no Deplexo, sobrevive a redeploys) e `seen.json` caso contrário (uso local).
 
 ```bash
 # local (usa seen.json, sem configurar nada)
 .venv/bin/python -m ciee_monitor --watch
 
-# ambiente hospedado com disco persistente (ex.: Deplexo, /data sobrevive a redeploys)
+# produção no Deplexo (usa /data/seen.json automaticamente, sem variável)
+python -m ciee_monitor --watch
+
+# forçar um caminho específico (vale em qualquer ambiente)
 CIEE_SEEN_FILE=/data/seen.json .venv/bin/python -m ciee_monitor --watch
 ```
 

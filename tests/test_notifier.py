@@ -185,7 +185,7 @@ def _run_once_com_fetch_mockado(tmp_path, vagas, **patches):
     seen = tmp_path / "seen.json"
     if "seen_inicial" in patches:
         seen.write_text(json.dumps(patches.pop("seen_inicial")), encoding="utf-8")
-    with patch.object(m, "fetch_vagas", return_value=(vagas, len(vagas))):
+    with patch.object(m, "fetch_todas_vagas", return_value=(vagas, len(vagas))):
         notify_mock = patches.get("notify_mock", MagicMock())
         with patch.object(m, "notify_vaga", notify_mock):
             rc = m.run_once(seen_path=str(seen))
@@ -229,7 +229,7 @@ def test_run_once_falha_email_nao_corrompe_seen_e_nao_confunde_com_api(
     seen.write_text(json.dumps(["111"]), encoding="utf-8")
     vagas = [_vaga_exemplo()]  # 6250388 nova
 
-    with patch.object(m, "fetch_vagas", return_value=(vagas, 1)):
+    with patch.object(m, "fetch_todas_vagas", return_value=(vagas, 1)):
         with patch.object(m, "notify_vaga", side_effect=NotifierError("smtp caiu")):
             rc = m.run_once(seen_path=str(seen))
 
@@ -253,7 +253,7 @@ def test_run_once_sem_config_email_erro_compreensivel_sem_traceback(
     for var in REQUIRED_VARS:
         monkeypatch.delenv(var, raising=False)
     seen = tmp_path / "seen.json"
-    with patch.object(m, "fetch_vagas", return_value=([_vaga_exemplo()], 1)):
+    with patch.object(m, "fetch_todas_vagas", return_value=([_vaga_exemplo()], 1)):
         rc = m.run_once(seen_path=str(seen))  # não deve levantar
 
     assert rc == 0

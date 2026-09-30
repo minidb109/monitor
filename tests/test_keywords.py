@@ -105,10 +105,10 @@ def test_dedup_continua_funcionando(tmp_path, monkeypatch):
     _set_fake_email_env(monkeypatch)
     seen = tmp_path / "seen.json"
     vagas = [_vaga_java_backend()]
-    with patch.object(m, "fetch_vagas", return_value=(vagas, 1)):
+    with patch.object(m, "fetch_todas_vagas", return_value=(vagas, 1)):
         with patch.object(m, "notify_vaga", MagicMock()):
             assert m.run_once(seen_path=str(seen)) == 0
-    with patch.object(m, "fetch_vagas", return_value=(vagas, 1)):
+    with patch.object(m, "fetch_todas_vagas", return_value=(vagas, 1)):
         notify_mock = MagicMock()
         with patch.object(m, "notify_vaga", notify_mock):
             assert m.run_once(seen_path=str(seen)) == 0
@@ -129,7 +129,7 @@ def test_email_somente_para_novas_relevantes(tmp_path, monkeypatch):
     seen = tmp_path / "seen.json"
     seen.write_text(json.dumps(["102"]), encoding="utf-8")
     vagas = [relevante_nova, relevante_vista, irrelevante_nova]
-    with patch.object(m, "fetch_vagas", return_value=(vagas, 3)):
+    with patch.object(m, "fetch_todas_vagas", return_value=(vagas, 3)):
         notify_mock = MagicMock()
         with patch.object(m, "notify_vaga", notify_mock):
             assert m.run_once(seen_path=str(seen)) == 0

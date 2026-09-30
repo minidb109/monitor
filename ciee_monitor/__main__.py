@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from .api import CieeApiError, fetch_vagas
+from .api import CieeApiError, fetch_todas_vagas
 from .display import format_vaga
 from .health import resolve_port, start_health_server
 from .keywords import resolve_keywords, vaga_matches
@@ -32,7 +32,7 @@ def run_once(
     seen = load_seen(seen_path)
 
     try:
-        vagas, total = fetch_vagas(params=params, timeout=timeout)
+        vagas, total = fetch_todas_vagas(params=params, timeout=timeout)
     except CieeApiError as exc:
         print(f"Erro ao consultar API do CIEE: {exc}", file=sys.stderr)
         return 1

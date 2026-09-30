@@ -10,14 +10,17 @@ Consultar a API pública de vagas do CIEE e detectar novas oportunidades de est�
 
 `GET https://api.ciee.org.br/vagas/vitrine-vaga/publicadas`
 
-Filtros padrão (v1):
+Filtros padrão (busca ampla em informática):
 
 - `tipoVaga=ESTAGIO`
 - `nivelEnsino=TE`
 - `idAreaProfissional=53` (Informática - TÉC.)
-- `idAreaAtuacaoEstagio=473` (Desenvolvimento de Sistemas)
 - `codigoMunicipio=3552205` (Sorocaba)
 - `page=0`, `size=100`, `sort=codigoVaga,desc`
+
+Sem filtro de área de atuação: a relevância é decidida pelo filtro interno de palavras-chave (seção abaixo), então vagas de software chegam mesmo classificadas em outra categoria pelo CIEE.
+
+A coleta percorre as páginas até `totalElements` (respeitando `size`, teto de 10 páginas por ciclo, parando em página vazia). Erro em qualquer página aborta o ciclo como erro de API, sem persistir.
 
 ## Uso
 
@@ -100,7 +103,7 @@ Semântica de falha (sem overengineering, sem perda silenciosa):
 
 ## Estrutura
 
-- `ciee_monitor/api.py` — `fetch_vagas()` + `CieeApiError` (rede, timeout, HTTP, JSON)
+- `ciee_monitor/api.py` — `fetch_vagas()` (uma página) + `fetch_todas_vagas()` (paginação até `totalElements`, teto de 10) + `CieeApiError`
 - `ciee_monitor/storage.py` — `load_seen()`, `save_seen()`, `find_new_vagas()`, `mark_as_seen()`
 - `ciee_monitor/display.py` — `format_vaga()`, `format_bolsa()`, `format_local()`
 - `ciee_monitor/__main__.py` — `run_once()` + CLI + hook de notificação (só novas relevantes, antes de persistir)

@@ -116,6 +116,14 @@ def test_cli_interval_via_env(monkeypatch):
     assert resolve_interval(args) == 120
 
 
+def test_cli_interval_cli_vence_env(monkeypatch):
+    from ciee_monitor.__main__ import build_parser, resolve_interval
+
+    monkeypatch.setenv("CIEE_INTERVAL", "120")
+    args = build_parser().parse_args(["--watch", "--interval", "60"])
+    assert resolve_interval(args) == 60
+
+
 def test_cli_interval_invalido_rejeitado():
     from ciee_monitor.__main__ import build_parser
     import argparse

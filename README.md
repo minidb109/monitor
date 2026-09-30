@@ -1,6 +1,6 @@
 # ciee-monitor
 
-Monitor local (execução única) para a API pública de vagas do CIEE, sem WhatsApp, sem daemon, sem banco, sem frontend.
+Monitor local (execução única ou contínua com `--watch`) para a API pública de vagas do CIEE, com notificações por e-mail via SMTP. Sem banco de dados, sem frontend, sem WhatsApp, sem daemon/systemd.
 
 ## Objetivo
 
@@ -51,6 +51,10 @@ Persistência: `seen.json` (lista de `codigoVaga` já vistos, como strings). Na 
 
 Quando uma vaga **nova** é detectada, o monitor envia um e-mail via SMTP (só stdlib, sem dependências). Assunto: `[CIEE Monitor] Nova vaga de estágio - <codigo>`.
 
+Status: SMTP real validado (envio e recebimento confirmados, incluindo fluxo de vaga nova e deduplicação sem reenvio).
+
+Configuração local via `.env` (ignorado pelo git; veja `.env.example` — nunca commite credenciais reais):
+
 ```bash
 # veja .env.example e exporte (nunca commite credenciais; .env está no .gitignore)
 export CIEE_EMAIL_HOST=smtp.seu-provedor.com
@@ -85,9 +89,9 @@ Semântica de falha (sem overengineering, sem perda silenciosa):
 .venv/bin/python -m pytest tests/ -v
 ```
 
-## Limites da v1 (por decisão)
+## Limites / fora de escopo (por decisão)
 
-- Sem loop infinito, daemon, cron ou notificações
+- Sem daemon/systemd, cron ou hospedagem (etapa posterior)
 - Sem banco de dados (só `seen.json`)
 - Sem frontend
 - Sem WhatsApp / WhatsApp Web / scraping / automação de conta

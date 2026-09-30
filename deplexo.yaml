@@ -1,3 +1,3 @@
 framework: python
-start: python -m ciee_monitor --watch
+start: python -u -m ciee_monitor --watch
 port: 8000

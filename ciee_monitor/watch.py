@@ -1,4 +1,4 @@
-"""Loop contínuo do monitor CIEE (sem notificações)."""
+"""Loop contínuo do monitor CIEE (notificações via run_once)."""
 
 from __future__ import annotations
 

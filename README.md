@@ -47,14 +47,37 @@ Saída no terminal:
 
 Persistência: `seen.json` (lista de `codigoVaga` já vistos, como strings). Na segunda execução com os mesmos dados, nada aparece como novo.
 
+## Notificações por e-mail
+
+Quando uma vaga **nova** é detectada, o monitor envia um e-mail via SMTP (só stdlib, sem dependências). Assunto: `[CIEE Monitor] Nova vaga de estágio - <codigo>`.
+
+```bash
+# veja .env.example e exporte (nunca commite credenciais; .env está no .gitignore)
+export CIEE_EMAIL_HOST=smtp.seu-provedor.com
+export CIEE_EMAIL_PORT=587
+export CIEE_EMAIL_USER=voce@example.com
+export CIEE_EMAIL_PASSWORD='sua-senha-ou-app-password'
+export CIEE_EMAIL_TO=destino@example.com
+
+.venv/bin/python -m ciee_monitor
+```
+
+Semântica de falha (sem overengineering, sem perda silenciosa):
+
+- E-mail é enviado **somente** para vagas classificadas como novas; vagas já vistas nunca disparam.
+- A notificação acontece **antes** de persistir; se o envio falhar, a vaga **não** é marcada como vista e será retentada no próximo ciclo. `seen.json` nunca é corrompido.
+- Falha de e-mail **não** derruba o `--watch` e **não** é confundida com falha de API (`run_once` segue retornando 1 só para API).
+- Sem configuração: erro compreensível em stderr (sem traceback), execução continua com exit 0 e a semântica de `seen.json` permanece a atual.
+
 ## Estrutura
 
 - `ciee_monitor/api.py` — `fetch_vagas()` + `CieeApiError` (rede, timeout, HTTP, JSON)
 - `ciee_monitor/storage.py` — `load_seen()`, `save_seen()`, `find_new_vagas()`, `mark_as_seen()`
 - `ciee_monitor/display.py` — `format_vaga()`, `format_bolsa()`, `format_local()`
-- `ciee_monitor/__main__.py` — `run_once()` (execução única) + CLI (`--watch`, `--interval`, `$CIEE_INTERVAL`)
+- `ciee_monitor/__main__.py` — `run_once()` + CLI + hook de notificação (só novas, antes de persistir)
+- `ciee_monitor/notifier.py` — `EmailConfig.from_env()`, `build_message()`, `notify_vaga()` (SMTP stdlib)
 - `ciee_monitor/watch.py` — `run_forever()` (loop com `sleep`, erro não encerra, `Ctrl+C` limpo)
-- `tests/` — testes com mocks (API real hoje retorna 0 vagas para o filtro completo)
+- `tests/` — testes com mocks (API real hoje retorna 0 vagas para o filtro completo; SMTP sempre mockado, nenhum e-mail real)
 
 ## Testes
 

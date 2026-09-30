@@ -10,6 +10,7 @@ from typing import Any
 
 from .api import CieeApiError, fetch_vagas
 from .display import format_vaga
+from .notifier import EmailConfig, NotifierConfigError, NotifierError, notify_vaga
 from .storage import find_new_vagas, load_seen, mark_as_seen, save_seen
 from .watch import run_forever
 
@@ -43,8 +44,38 @@ def run_once(
         print(format_vaga(vaga, is_new=is_new))
         print("-" * 60)
 
-    # Persiste todos os codigoVaga retornados para não repetir como novos.
-    updated = mark_as_seen(vagas, seen)
+    # Notificação por e-mail: somente vagas novas. A ordem importa:
+    # notifica ANTES de persistir, e vagas com falha de envio NÃO são
+    # marcadas como vistas — serão retentadas no próximo ciclo, sem
+    # corromper seen.json e sem perda silenciosa.
+    notify_failed: set[str] = set()
+    if novas:
+        try:
+            email_config: EmailConfig | None = EmailConfig.from_env()
+        except NotifierConfigError as exc:
+            print(f"Erro de configuração de e-mail: {exc}", file=sys.stderr)
+            print(
+                "Defina CIEE_EMAIL_HOST, CIEE_EMAIL_PORT, CIEE_EMAIL_USER, "
+                "CIEE_EMAIL_PASSWORD e CIEE_EMAIL_TO para ativar notificações.",
+                file=sys.stderr,
+            )
+            email_config = None
+        if email_config is not None:
+            for vaga in novas:
+                code = str(vaga.get("codigoVaga"))
+                try:
+                    notify_vaga(vaga, email_config)
+                    print(f"E-mail enviado para a vaga {code}.")
+                except NotifierError as exc:
+                    print(f"Erro ao enviar e-mail da vaga {code}: {exc}", file=sys.stderr)
+                    notify_failed.add(code)
+
+    # Persiste todos os codigoVaga retornados para não repetir como novos,
+    # exceto novas com falha de e-mail (serão notificadas na próxima vez).
+    updated = mark_as_seen(
+        [v for v in vagas if str(v.get("codigoVaga")) not in notify_failed],
+        seen,
+    )
     try:
         save_seen(updated, seen_path)
     except OSError as exc:

@@ -12,7 +12,14 @@ from .api import CieeApiError, fetch_todas_vagas
 from .display import format_vaga
 from .health import resolve_port, start_health_server
 from .keywords import resolve_keywords, vaga_matches
-from .notifier import EmailConfig, NotifierConfigError, NotifierError, notify_vaga
+from .notifier import (
+    EmailConfig,
+    NotifierConfigError,
+    NotifierError,
+    ResendConfig,
+    notify_vaga,
+    notify_vaga_resend,
+)
 from .storage import find_new_vagas, load_seen, mark_as_seen, save_seen
 from .watch import run_forever
 
@@ -20,6 +27,35 @@ DEFAULT_INTERVAL = 300
 DEFAULT_SEEN_FILE = "seen.json"
 SEEN_FILE_ENV_VAR = "CIEE_SEEN_FILE"
 DATA_DIR = Path("/data")
+
+# Contador em memória de falhas consecutivas de notificação por codigoVaga.
+# Evita spam de log quando o backend cai (ex: SMTP bloqueado): 1ª falha loga
+# erro cheio, repetidas são throttled, a cada THROTTLE_EVERY loga cheio de novo
+# e após ALERT_AFTER emite ALERTA.
+_notify_failure_counts: dict[str, int] = {}
+THROTTLE_EVERY = 6
+ALERT_AFTER = 12
+
+
+def _log_notify_failure(code: str, exc: Exception) -> None:
+    """Loga falha de notificação com throttle para evitar spam de retry."""
+    count = _notify_failure_counts.get(code, 0) + 1
+    _notify_failure_counts[code] = count
+    if count == 1 or count % THROTTLE_EVERY == 0:
+        print(f"Erro ao enviar e-mail da vaga {code}: {exc}", file=sys.stderr)
+    else:
+        print(
+            f"Retry throttled da vaga {code}: tentativa {count} falhou, "
+            f"próxima em breve (último erro: {exc})",
+            file=sys.stderr,
+        )
+    if count == ALERT_AFTER:
+        print(
+            f"ALERTA: notificação da vaga {code} falhando há {count} "
+            f"tentativas consecutivas, verifique RESEND_API_KEY / "
+            f"conectividade com api.resend.com:443",
+            file=sys.stderr,
+        )
 
 
 def run_once(
@@ -59,31 +95,54 @@ def run_once(
         print(format_vaga(vaga, is_new=is_new))
         print("-" * 60)
 
-    # Notificação por e-mail: somente vagas novas. A ordem importa:
+    # Notificação: somente vagas novas. A ordem importa:
     # notifica ANTES de persistir, e vagas com falha de envio NÃO são
     # marcadas como vistas — serão retentadas no próximo ciclo, sem
     # corromper seen.json e sem perda silenciosa.
+    # Backend: Resend via HTTPS (produção, SMTP bloqueado no Deplexo) tem
+    # precedência; SMTP é fallback local.
     notify_failed: set[str] = set()
     if novas:
+        backend: str | None = None
+        resend_config: ResendConfig | None = None
+        smtp_config: EmailConfig | None = None
         try:
-            email_config: EmailConfig | None = EmailConfig.from_env()
-        except NotifierConfigError as exc:
-            print(f"Erro de configuração de e-mail: {exc}", file=sys.stderr)
-            print(
-                "Defina CIEE_EMAIL_HOST, CIEE_EMAIL_PORT, CIEE_EMAIL_USER, "
-                "CIEE_EMAIL_PASSWORD e CIEE_EMAIL_TO para ativar notificações.",
-                file=sys.stderr,
-            )
-            email_config = None
-        if email_config is not None:
+            resend_config = ResendConfig.from_env()
+            backend = "resend"
+        except NotifierConfigError:
+            try:
+                smtp_config = EmailConfig.from_env()
+                backend = "smtp"
+            except NotifierConfigError as exc:
+                print(f"Erro de configuração de e-mail: {exc}", file=sys.stderr)
+                print(
+                    "Defina RESEND_API_KEY, CIEE_EMAIL_FROM e CIEE_EMAIL_TO "
+                    "(Resend via HTTPS) ou CIEE_EMAIL_HOST, CIEE_EMAIL_PORT, "
+                    "CIEE_EMAIL_USER, CIEE_EMAIL_PASSWORD e CIEE_EMAIL_TO "
+                    "(SMTP) para ativar notificações.",
+                    file=sys.stderr,
+                )
+                backend = None
+        if backend == "resend" and resend_config is not None:
             for vaga in novas:
                 code = str(vaga.get("codigoVaga"))
                 try:
-                    notify_vaga(vaga, email_config)
+                    notify_vaga_resend(vaga, resend_config)
                     print(f"E-mail enviado para a vaga {code}.")
+                    _notify_failure_counts.pop(code, None)
                 except NotifierError as exc:
-                    print(f"Erro ao enviar e-mail da vaga {code}: {exc}", file=sys.stderr)
                     notify_failed.add(code)
+                    _log_notify_failure(code, exc)
+        elif backend == "smtp" and smtp_config is not None:
+            for vaga in novas:
+                code = str(vaga.get("codigoVaga"))
+                try:
+                    notify_vaga(vaga, smtp_config)
+                    print(f"E-mail enviado para a vaga {code}.")
+                    _notify_failure_counts.pop(code, None)
+                except NotifierError as exc:
+                    notify_failed.add(code)
+                    _log_notify_failure(code, exc)
 
     # Persiste todos os codigoVaga retornados para não repetir como novos,
     # exceto novas com falha de e-mail (serão notificadas na próxima vez).

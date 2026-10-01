@@ -57,3 +57,31 @@ def test_format_local_none_safe():
 
 def test_format_bolsa_none_safe():
     assert isinstance(display.format_bolsa({}), str)
+
+
+def test_vaga_url_monta_link_vitrine():
+    assert display.vaga_url(6253523) == (
+        "https://ciee.app/login?codigoVagaPortal=6253523"
+        "&acesso=VITRINE_VAGA&tag=S_QUERO"
+    )
+    assert display.vaga_url("6253544") == (
+        "https://ciee.app/login?codigoVagaPortal=6253544"
+        "&acesso=VITRINE_VAGA&tag=S_QUERO"
+    )
+
+
+def test_vaga_url_sem_codigo_retorna_none():
+    assert display.vaga_url(None) is None
+    assert display.vaga_url("?") is None
+    assert display.vaga_url({}) is None
+
+
+def test_format_vaga_contem_link():
+    texto = display.format_vaga(_vaga_exemplo(), is_new=True)
+    assert "https://ciee.app/login?codigoVagaPortal=6250388" in texto
+    assert "VITRINE_VAGA" in texto
+
+
+def test_format_vaga_sem_codigo_sem_link_nao_quebra():
+    texto = display.format_vaga({}, is_new=True)
+    assert "ciee.app" not in texto

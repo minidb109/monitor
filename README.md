@@ -77,19 +77,24 @@ CIEE_SEEN_FILE=/data/seen.json .venv/bin/python -m ciee_monitor --watch
 
 ## Notificações por e-mail
 
-Quando uma vaga **nova** é detectada, o monitor envia um e-mail via SMTP (só stdlib, sem dependências). Assunto: `[CIEE Monitor] Nova vaga de estágio - <codigo>`.
+Quando uma vaga **nova** é detectada, o monitor envia um e-mail via Resend HTTPS API (produção) ou SMTP (fallback local), só stdlib, sem dependências. Assunto: `[CIEE Monitor] Nova vaga de estágio - <codigo>`.
 
-Status: SMTP real validado (envio e recebimento confirmados, incluindo fluxo de vaga nova e deduplicação sem reenvio).
+Status: SMTP real validado localmente; Resend validado via mocks + HTTPS (produção no Deplexo, onde `smtp.gmail.com:587` retorna `[Errno 101] Network is unreachable` mas `https://api.ciee.org.br` e `https://api.resend.com` funcionam).
 
-Configuração local via `.env` (ignorado pelo git; veja `.env.example` — nunca commite credenciais reais):
+Configuração produção via `.env` (ignorado pelo git; veja `.env.example` — nunca commite credenciais reais):
 
 ```bash
-# veja .env.example e exporte (nunca commite credenciais; .env está no .gitignore)
-export CIEE_EMAIL_HOST=smtp.seu-provedor.com
-export CIEE_EMAIL_PORT=587
-export CIEE_EMAIL_USER=voce@example.com
-export CIEE_EMAIL_PASSWORD='sua-senha-ou-app-password'
+# Resend (recomendado no Deplexo — HTTPS 443 liberado, SMTP 587 bloqueado)
+export RESEND_API_KEY='re_sua-chave'
+export CIEE_EMAIL_FROM='monitor@seu-dominio-verificado.com'
 export CIEE_EMAIL_TO=destino@example.com
+
+# Fallback SMTP local (usado só quando RESEND_API_KEY ausente)
+# export CIEE_EMAIL_HOST=smtp.seu-provedor.com
+# export CIEE_EMAIL_PORT=587
+# export CIEE_EMAIL_USER=voce@example.com
+# export CIEE_EMAIL_PASSWORD='sua-senha-ou-app-password'
+# export CIEE_EMAIL_TO=destino@example.com
 
 .venv/bin/python -m ciee_monitor
 ```
@@ -97,20 +102,21 @@ export CIEE_EMAIL_TO=destino@example.com
 Semântica de falha (sem overengineering, sem perda silenciosa):
 
 - E-mail é enviado **somente** para vagas classificadas como novas; vagas já vistas nunca disparam.
-- A notificação acontece **antes** de persistir; se o envio falhar, a vaga **não** é marcada como vista e será retentada no próximo ciclo. `seen.json` nunca é corrompido.
+- A notificação acontece **antes** de persistir; se o envio falhar, a vaga **não** é marcada como vista e será retentada no próximo ciclo. `seen.json` nunca é corrompido. Vagas 6253523/6253544 pendentes serão notificadas uma vez no primeiro ciclo após configurar Resend.
+- Retry com throttle: 1ª falha loga erro cheio, repetidas logan `Retry throttled ... tentativa N`, a cada 6 loga cheio de novo, após 12 emite `ALERTA ... verifique RESEND_API_KEY / api.resend.com:443`. Evita spam de `Novas: 2` a cada 5min.
 - Falha de e-mail **não** derruba o `--watch` e **não** é confundida com falha de API (`run_once` segue retornando 1 só para API).
-- Sem configuração: erro compreensível em stderr (sem traceback), execução continua com exit 0 e a semântica de `seen.json` permanece a atual.
+- Sem configuração (nem Resend nem SMTP): erro compreensível em stderr (sem traceback), execução continua com exit 0 e a semântica de `seen.json` permanece a atual.
 
 ## Estrutura
 
 - `ciee_monitor/api.py` — `fetch_vagas()` (uma página) + `fetch_todas_vagas()` (paginação até `totalElements`, teto de 10) + `CieeApiError`
 - `ciee_monitor/storage.py` — `load_seen()`, `save_seen()`, `find_new_vagas()`, `mark_as_seen()`
 - `ciee_monitor/display.py` — `format_vaga()`, `format_bolsa()`, `format_local()`
-- `ciee_monitor/__main__.py` — `run_once()` + CLI + hook de notificação (só novas relevantes, antes de persistir)
+- `ciee_monitor/__main__.py` — `run_once()` + CLI + hook de notificação (Resend preferido, SMTP fallback, throttle via `_notify_failure_counts`)
 - `ciee_monitor/keywords.py` — `DEFAULT_KEYWORDS`, `resolve_keywords()` (`$CIEE_KEYWORDS`), `vaga_matches()`
-- `ciee_monitor/notifier.py` — `EmailConfig.from_env()`, `build_message()`, `notify_vaga()` (SMTP stdlib)
+- `ciee_monitor/notifier.py` — `ResendConfig` + `notify_vaga_resend()` (HTTPS `api.resend.com`, urllib stdlib) + `EmailConfig` + `notify_vaga()` (SMTP fallback)
 - `ciee_monitor/watch.py` — `run_forever()` (loop com `sleep`, erro não encerra, `Ctrl+C` limpo)
-- `tests/` — testes com mocks (API real hoje retorna 0 vagas para o filtro completo; SMTP sempre mockado, nenhum e-mail real)
+- `tests/` — testes com mocks (Resend/SMTP sempre mockados, nenhum e-mail real; `test_resend.py` cobre 6253523 real)
 
 ## Testes
 

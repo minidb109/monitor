@@ -1,28 +1,41 @@
-"""Notificação por e-mail de vagas novas (somente stdlib: smtplib/email).
+"""Notificação por e-mail de vagas novas (somente stdlib).
+
+Suporta dois backends:
+
+- Resend via HTTPS (produção no Deplexo, onde SMTP é bloqueado):
+  POST https://api.resend.com/emails com `RESEND_API_KEY`.
+- SMTP via smtplib (uso local / fallback).
 
 Configuração por variáveis de ambiente (nenhum valor sensível no código):
 
-- CIEE_EMAIL_HOST (obrigatório)
-- CIEE_EMAIL_PORT (opcional, padrão 587)
-- CIEE_EMAIL_USER (obrigatório)
-- CIEE_EMAIL_PASSWORD (obrigatório)
+- RESEND_API_KEY (obrigatório p/ Resend)
+- CIEE_EMAIL_FROM (obrigatório p/ Resend, remetente verificado)
 - CIEE_EMAIL_TO (obrigatório, destinatário)
+- CIEE_EMAIL_HOST (obrigatório p/ SMTP)
+- CIEE_EMAIL_PORT (opcional p/ SMTP, padrão 587)
+- CIEE_EMAIL_USER (obrigatório p/ SMTP)
+- CIEE_EMAIL_PASSWORD (obrigatório p/ SMTP)
 
-A senha nunca aparece em logs, mensagens de erro ou no e-mail.
+A senha/chave nunca aparece em logs, mensagens de erro ou no e-mail.
 """
 
 from __future__ import annotations
 
+import json
 import os
 import smtplib
+import urllib.error
+import urllib.request
 from dataclasses import dataclass
 from email.message import EmailMessage
 from typing import Any
 
-from .display import format_area, format_bolsa, format_local
+from .display import format_area, format_bolsa, format_local, vaga_url
 
 DEFAULT_PORT = 587
 SMTP_TIMEOUT = 15
+RESEND_API_URL = "https://api.resend.com/emails"
+RESEND_TIMEOUT = 15
 
 
 class NotifierError(RuntimeError):
@@ -98,10 +111,72 @@ class EmailConfig:
 
 def build_message(vaga: dict[str, Any], config: EmailConfig) -> EmailMessage:
     """Monta o e-mail de uma vaga nova (sem enviar)."""
+    subject, body = build_subject_and_body(vaga)
+
+    msg = EmailMessage()
+    msg["Subject"] = subject
+    msg["From"] = config.user
+    msg["To"] = config.to
+    msg.set_content(body)
+    return msg
+
+
+@dataclass(frozen=True)
+class ResendConfig:
+    api_key: str
+    from_addr: str
+    to: str
+
+    def __repr__(self) -> str:  # pragma: no cover - segurança
+        return (
+            f"ResendConfig(api_key='***', "
+            f"from_addr={self.from_addr!r}, to={self.to!r})"
+        )
+
+    @classmethod
+    def from_env(cls, env: dict[str, str] | None = None) -> ResendConfig:
+        """Lê a configuração Resend das variáveis de ambiente.
+
+        Raises:
+            NotifierConfigError: lista as variáveis ausentes (só nomes,
+                nunca valores).
+        """
+        source = os.environ if env is None else env
+
+        def get(name: str) -> str | None:
+            value = source.get(name)
+            if value is None or not str(value).strip():
+                return None
+            return str(value).strip()
+
+        missing = [
+            name
+            for name in (
+                "RESEND_API_KEY",
+                "CIEE_EMAIL_FROM",
+                "CIEE_EMAIL_TO",
+            )
+            if get(name) is None
+        ]
+        if missing:
+            raise NotifierConfigError(
+                "configuração Resend incompleta; "
+                f"variáveis ausentes: {', '.join(missing)}"
+            )
+        return cls(
+            api_key=get("RESEND_API_KEY") or "",
+            from_addr=get("CIEE_EMAIL_FROM") or "",
+            to=get("CIEE_EMAIL_TO") or "",
+        )
+
+
+def build_subject_and_body(vaga: dict[str, Any]) -> tuple[str, str]:
+    """Assunto + corpo texto compartilhados entre SMTP e Resend."""
     codigo = vaga.get("codigoVaga", "?")
     empresa = vaga.get("nomeEmpresa", "?")
     descricao = vaga.get("descricao") or "sem descrição"
     atividades = vaga.get("atividades") or []
+    link = vaga_url(vaga.get("codigoVaga"))
 
     lines = [
         "Nova vaga encontrada no CIEE.",
@@ -111,23 +186,90 @@ def build_message(vaga: dict[str, Any], config: EmailConfig) -> EmailMessage:
         f"Área: {format_area(vaga)}",
         f"Bolsa: {format_bolsa(vaga)}",
         f"Localização: {format_local(vaga)}",
-        "",
-        "Descrição:",
-        str(descricao),
-        "",
     ]
+    if link is not None:
+        lines.append(f"Link: {link}")
+    lines.extend(
+        [
+            "",
+            "Descrição:",
+            str(descricao),
+            "",
+        ]
+    )
     if atividades:
         lines.append("Atividades:")
         lines.extend(f"  - {a}" for a in atividades)
     else:
         lines.append("Atividades: não informadas")
 
-    msg = EmailMessage()
-    msg["Subject"] = f"[CIEE Monitor] Nova vaga de estágio - {codigo}"
-    msg["From"] = config.user
-    msg["To"] = config.to
-    msg.set_content("\n".join(lines))
-    return msg
+    subject = f"[CIEE Monitor] Nova vaga de estágio - {codigo}"
+    return subject, "\n".join(lines)
+
+
+def build_resend_payload(vaga: dict[str, Any], config: ResendConfig) -> dict[str, Any]:
+    """Monta o payload JSON para POST https://api.resend.com/emails."""
+    import html as _html
+
+    subject, body = build_subject_and_body(vaga)
+    link = vaga_url(vaga.get("codigoVaga"))
+    # HTML clicável: escapa corpo e transforma quebras em <br>, link em <a>.
+    escaped_body = _html.escape(body).replace("\n", "<br>")
+    if link is not None:
+        escaped_link = _html.escape(link, quote=True)
+        html_body = (
+            f"{escaped_body}<br><br>"
+            f'<a href="{escaped_link}">Ver vaga no CIEE</a>'
+        )
+    else:
+        html_body = escaped_body
+    return {
+        "from": config.from_addr,
+        "to": [config.to],
+        "subject": subject,
+        "text": body,
+        "html": html_body,
+    }
+
+
+def notify_vaga_resend(vaga: dict[str, Any], config: ResendConfig | None = None) -> None:
+    """Envia um e-mail via Resend HTTPS API.
+
+    Raises:
+        NotifierConfigError: configuração ausente/inválida.
+        NotifierError: falha de HTTP/rede (sem expor a API key).
+    """
+    cfg = config if config is not None else ResendConfig.from_env()
+    payload = build_resend_payload(vaga, cfg)
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(
+        RESEND_API_URL,
+        data=data,
+        headers={
+            "Authorization": f"Bearer {cfg.api_key}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=RESEND_TIMEOUT) as resp:
+            status = getattr(resp, "status", 200)
+            if status not in (200, 201, 202):
+                raise NotifierError(
+                    f"falha ao enviar e-mail da vaga {vaga.get('codigoVaga', '?')} "
+                    f"via Resend: HTTP {status}"
+                )
+    except urllib.error.HTTPError as exc:
+        codigo = vaga.get("codigoVaga", "?")
+        raise NotifierError(
+            f"falha ao enviar e-mail da vaga {codigo} via Resend: "
+            f"HTTP {exc.code} {exc.reason}"
+        ) from exc
+    except (urllib.error.URLError, OSError) as exc:
+        codigo = vaga.get("codigoVaga", "?")
+        raise NotifierError(
+            f"falha ao enviar e-mail da vaga {codigo} via Resend: {exc}"
+        ) from exc
 
 
 def notify_vaga(vaga: dict[str, Any], config: EmailConfig | None = None) -> None:

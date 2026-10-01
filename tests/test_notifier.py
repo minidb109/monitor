@@ -97,6 +97,27 @@ def test_build_message_nunca_contem_senha(monkeypatch):
     assert "senha-super-secreta-123" not in msg.as_string()
 
 
+def test_build_message_corpo_contem_link_vitrine(monkeypatch):
+    from ciee_monitor import notifier
+
+    _set_env(monkeypatch)
+    config = notifier.EmailConfig.from_env()
+    body = notifier.build_message(_vaga_exemplo(), config).get_content()
+    assert "https://ciee.app/login?codigoVagaPortal=6250388" in body
+    assert "VITRINE_VAGA" in body
+
+
+def test_build_message_sem_codigo_sem_link_nao_quebra(monkeypatch):
+    from ciee_monitor import notifier
+
+    _set_env(monkeypatch)
+    config = notifier.EmailConfig.from_env()
+    vaga = _vaga_exemplo()
+    vaga.pop("codigoVaga", None)
+    body = notifier.build_message(vaga, config).get_content()
+    assert "ciee.app" not in body
+
+
 # --- configuração via ambiente ---
 
 

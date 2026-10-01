@@ -261,9 +261,15 @@ def notify_vaga_resend(vaga: dict[str, Any], config: ResendConfig | None = None)
                 )
     except urllib.error.HTTPError as exc:
         codigo = vaga.get("codigoVaga", "?")
+        try:
+            raw_body = exc.read().decode("utf-8", errors="replace")
+        except Exception:
+            raw_body = ""
+        detail = raw_body.strip()[:500] if raw_body.strip() else exc.reason
         raise NotifierError(
-            f"falha ao enviar e-mail da vaga {codigo} via Resend: "
-            f"HTTP {exc.code} {exc.reason}"
+            f"falha ao enviar e-mail da vaga {codigo} via Resend "
+            f"(from={cfg.from_addr} to={cfg.to}): "
+            f"HTTP {exc.code} {detail}"
         ) from exc
     except (urllib.error.URLError, OSError) as exc:
         codigo = vaga.get("codigoVaga", "?")

@@ -144,6 +144,37 @@ def test_notify_resend_chama_https_corretamente(monkeypatch):
     assert captured["timeout"] == 15
 
 
+def test_notify_resend_envia_user_agent_customizado(monkeypatch):
+    """Cloudflare/Resend bloqueia Python-urllib com 403 error code 1010.
+
+    O notifier deve enviar User-Agent explícito (não Python-urllib).
+    """
+    from unittest.mock import MagicMock, patch
+
+    from ciee_monitor import notifier
+
+    _set_resend_env(monkeypatch)
+    config = notifier.ResendConfig.from_env()
+
+    fake_resp = MagicMock()
+    fake_resp.status = 200
+    fake_resp.__enter__.return_value = fake_resp
+    fake_resp.__exit__.return_value = False
+
+    captured = {}
+
+    def fake_urlopen(req, timeout=None):
+        captured["headers"] = {k.lower(): v for k, v in req.header_items()}
+        return fake_resp
+
+    with patch.object(notifier.urllib.request, "urlopen", side_effect=fake_urlopen):
+        notifier.notify_vaga_resend(_vaga_exemplo(), config)
+
+    ua = captured["headers"].get("user-agent", "")
+    assert ua != "", "User-Agent explícito ausente (cai para Python-urllib, bloqueado com 1010)"
+    assert "python-urllib" not in ua.lower()
+
+
 def test_notify_resend_falha_http_vira_notifier_error_sem_chave(monkeypatch):
     import urllib.error
 

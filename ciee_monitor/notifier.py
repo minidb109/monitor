@@ -248,6 +248,9 @@ def notify_vaga_resend(vaga: dict[str, Any], config: ResendConfig | None = None)
         headers={
             "Authorization": f"Bearer {cfg.api_key}",
             "Content-Type": "application/json",
+            # Cloudflare na frente da api.resend.com bloqueia o default
+            # Python-urllib/3.x com 403 error code 1010. UA explícito resolve.
+            "User-Agent": "ciee-monitor/1.0",
         },
         method="POST",
     )

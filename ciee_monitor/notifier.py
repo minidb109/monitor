@@ -213,8 +213,12 @@ def build_resend_payload(vaga: dict[str, Any], config: ResendConfig) -> dict[str
 
     subject, body = build_subject_and_body(vaga)
     link = vaga_url(vaga.get("codigoVaga"))
-    # HTML clicável: escapa corpo e transforma quebras em <br>, link em <a>.
-    escaped_body = _html.escape(body).replace("\n", "<br>")
+    # HTML com link único: remove a linha "Link: <url>" do corpo (o text
+    # mantém) e deixa só o CTA clicável no final.
+    html_source = "\n".join(
+        line for line in body.split("\n") if not line.startswith("Link: ")
+    )
+    escaped_body = _html.escape(html_source).replace("\n", "<br>")
     if link is not None:
         escaped_link = _html.escape(link, quote=True)
         html_body = (

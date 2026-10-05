@@ -99,6 +99,21 @@ def test_build_resend_payload_contem_link_texto_e_html(monkeypatch):
     assert "<a href=" in payload["html"]
 
 
+def test_build_resend_payload_html_tem_link_unico(monkeypatch):
+    from ciee_monitor import notifier
+
+    _set_resend_env(monkeypatch)
+    config = notifier.ResendConfig.from_env()
+    payload = notifier.build_resend_payload(_vaga_exemplo(), config)
+    url = "https://ciee.app/login?codigoVagaPortal=6253523&acesso=VITRINE_VAGA&tag=S_QUERO"
+    # Texto mantém a URL crua; HTML deve ter ocorrência única (só o CTA).
+    # & escapa para &amp; no HTML, então conta pelo marcador estável.
+    assert url in payload["text"]
+    assert payload["html"].count("codigoVagaPortal=6253523") == 1
+    assert "Link:" not in payload["html"]
+    assert "Ver vaga no CIEE" in payload["html"]
+
+
 def test_build_resend_payload_sem_codigo_sem_link_nao_quebra(monkeypatch):
     from ciee_monitor import notifier
 

@@ -42,6 +42,34 @@ def format_area(vaga: dict[str, Any]) -> str:
     return str(prof)
 
 
+def format_horario(vaga: dict[str, Any]) -> str:
+    """Horário do estágio como '09:00 às 16:00' (corta segundos)."""
+    entrada = vaga.get("horarioEntrada")
+    saida = vaga.get("horarioSaida")
+
+    def hhmm(value: Any) -> str | None:
+        if value is None:
+            return None
+        text = str(value).strip()
+        if not text:
+            return None
+        parts = text.split(":")
+        if len(parts) < 2:
+            return None
+        if not parts[0].isdigit() or not parts[1].isdigit():
+            return None
+        return f"{int(parts[0]):02d}:{int(parts[1]):02d}"
+
+    ini, fim = hhmm(entrada), hhmm(saida)
+    if ini and fim:
+        return f"{ini} às {fim}"
+    if ini:
+        return f"a partir das {ini}"
+    if fim:
+        return f"até às {fim}"
+    return "não informado"
+
+
 VITRINE_URL_BASE = "https://ciee.app/login"
 
 
@@ -72,6 +100,7 @@ def format_vaga(vaga: dict[str, Any], is_new: bool) -> str:
     area = format_area(vaga)
     bolsa = format_bolsa(vaga)
     local = format_local(vaga)
+    horario = format_horario(vaga)
     descricao = vaga.get("descricao") or "sem descrição"
     atividades = vaga.get("atividades") or []
     link = vaga_url(vaga.get("codigoVaga"))
@@ -84,6 +113,7 @@ def format_vaga(vaga: dict[str, Any], is_new: bool) -> str:
     lines.append(f"Área: {area}")
     lines.append(f"Bolsa: {bolsa}")
     lines.append(f"Localização: {local}")
+    lines.append(f"Horário: {horario}")
     if link is not None:
         lines.append(f"Link: {link}")
     lines.append(f"Descrição: {descricao}")

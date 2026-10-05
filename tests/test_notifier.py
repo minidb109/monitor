@@ -107,6 +107,18 @@ def test_build_message_corpo_contem_link_vitrine(monkeypatch):
     assert "VITRINE_VAGA" in body
 
 
+def test_build_message_corpo_contem_horario(monkeypatch):
+    from ciee_monitor import notifier
+
+    _set_env(monkeypatch)
+    config = notifier.EmailConfig.from_env()
+    vaga = _vaga_exemplo()
+    vaga["horarioEntrada"] = "09:00:00"
+    vaga["horarioSaida"] = "16:00:00"
+    body = notifier.build_message(vaga, config).get_content()
+    assert "09:00 às 16:00" in body
+
+
 def test_build_message_sem_codigo_sem_link_nao_quebra(monkeypatch):
     from ciee_monitor import notifier
 

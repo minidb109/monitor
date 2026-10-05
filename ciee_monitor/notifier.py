@@ -30,7 +30,7 @@ from dataclasses import dataclass
 from email.message import EmailMessage
 from typing import Any
 
-from .display import format_area, format_bolsa, format_local, vaga_url
+from .display import format_area, format_bolsa, format_horario, format_local, vaga_url
 
 DEFAULT_PORT = 587
 SMTP_TIMEOUT = 15
@@ -186,6 +186,7 @@ def build_subject_and_body(vaga: dict[str, Any]) -> tuple[str, str]:
         f"Área: {format_area(vaga)}",
         f"Bolsa: {format_bolsa(vaga)}",
         f"Localização: {format_local(vaga)}",
+        f"Horário: {format_horario(vaga)}",
     ]
     if link is not None:
         lines.append(f"Link: {link}")

@@ -85,3 +85,16 @@ def test_format_vaga_contem_link():
 def test_format_vaga_sem_codigo_sem_link_nao_quebra():
     texto = display.format_vaga({}, is_new=True)
     assert "ciee.app" not in texto
+
+
+def test_format_vaga_contem_horario():
+    vaga = _vaga_exemplo()
+    vaga["horarioEntrada"] = "13:00:00"
+    vaga["horarioSaida"] = "19:00:00"
+    texto = display.format_vaga(vaga, is_new=True)
+    assert "13:00 às 19:00" in texto
+
+
+def test_format_horario_ausente_nao_quebra():
+    assert isinstance(display.format_horario({}), str)
+    assert "não informado" in display.format_horario({}).lower()
